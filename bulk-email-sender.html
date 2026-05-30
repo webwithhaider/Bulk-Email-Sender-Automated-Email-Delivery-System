@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MailBlast — Bulk Email Sender</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c27;
+    --border: #2a2a3a;
+    --accent: #ff6b35;
+    --accent2: #ffd166;
+    --text: #f0f0f5;
+    --muted: #7a7a95;
+    --success: #06d6a0;
+    --danger: #ef476f;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 80% 20%, rgba(255,107,53,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 60% at 10% 80%, rgba(255,209,102,0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 56px;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .logo-icon {
+    width: 48px; height: 48px;
+    background: var(--accent);
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--text) 40%, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .tagline {
+    color: var(--muted);
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+  }
+
+  /* Steps */
+  .steps {
+    display: flex;
+    gap: 0;
+    margin-bottom: 40px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .step {
+    flex: 1;
+    padding: 14px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--muted);
+    background: var(--surface);
+    transition: all 0.3s;
+    border-right: 1px solid var(--border);
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .step:last-child { border-right: none; }
+  .step.active { background: var(--accent); color: #fff; }
+  .step.done { background: var(--surface2); color: var(--success); }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .badge {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    background: var(--surface2);
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(255,107,53,0.05);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon { font-size: 3rem; margin-bottom: 12px; }
+
+  .drop-zone p {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  .drop-zone strong { color: var(--text); }
+
+  /* Emails extracted */
+  .email-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 4px;
+  }
+
+  .email-tag {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-size: 0.78rem;
+    color: var(--accent2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: popIn 0.2s ease;
+  }
+
+  .email-tag button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0;
+    transition: color 0.2s;
+  }
+  .email-tag button:hover { color: var(--danger); }
+
+  .email-count {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* Form fields */
+  .field { margin-bottom: 20px; }
+
+  label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  input[type="text"], input[type="email"], textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  input[type="text"]:focus, input[type="email"]:focus, textarea:focus {
+    border-color: var(--accent);
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 140px;
+    line-height: 1.6;
+  }
+
+  /* Buttons */
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 14px 28px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    width: 100%;
+    justify-content: center;
+    font-size: 1.05rem;
+    padding: 16px;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #ff8555;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(255,107,53,0.3);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover { border-color: var(--accent); }
+
+  /* Progress */
+  .progress-bar {
+    background: var(--surface2);
+    border-radius: 999px;
+    height: 6px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 999px;
+    transition: width 0.4s ease;
+  }
+
+  /* Log */
+  .log {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-size: 0.82rem;
+    line-height: 1.8;
+  }
+
+  .log-line { display: flex; gap: 10px; }
+  .log-line.ok { color: var(--success); }
+  .log-line.err { color: var(--danger); }
+  .log-line.info { color: var(--muted); }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+
+  /* Status pill */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .status-pill.success { background: rgba(6,214,160,0.1); color: var(--success); border: 1px solid rgba(6,214,160,0.3); }
+  .status-pill.error { background: rgba(239,71,111,0.1); color: var(--danger); border: 1px solid rgba(239,71,111,0.3); }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* Summary */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .summary-card {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .summary-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+  }
+
+  .summary-label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+  /* Separator */
+  .sep {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+  }
+
+  /* Animations */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  .hidden { display: none; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Add email manually */
+  .add-email-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .add-email-row input { flex: 1; }
+  .add-email-row button { white-space: nowrap; }
+
+  .empty-state {
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">✉</div>
+    </div>
+    <h1>MailBlast</h1>
+    <p class="tagline">Upload a file · Extract emails · Send in one shot</p>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1">① Upload File</div>
+    <div class="step" id="step2">② Compose</div>
+    <div class="step" id="step3">③ Send</div>
+  </div>
+
+  <!-- STEP 1: Upload -->
+  <div class="card" id="card-upload">
+    <div class="card-title">
+      📂 Upload Your File
+      <span class="badge">XLSX · XLS · DOCX · TXT · CSV</span>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.docx,.txt"/>
+      <div class="drop-icon">📄</div>
+      <p><strong>Drop your file here</strong> or click to browse<br/>
+      Excel, Word, CSV, and text files supported</p>
+    </div>
+
+    <div id="extractedSection" class="hidden" style="margin-top:24px">
+      <div class="email-count" id="emailCount"></div>
+      <div class="email-tags" id="emailTags"></div>
+
+      <div class="add-email-row">
+        <input type="email" id="manualEmail" placeholder="Add email manually..."/>
+        <button class="btn btn-secondary" onclick="addManualEmail()">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Compose -->
+  <div class="card" id="card-compose">
+    <div class="card-title">✍️ Compose Your Email</div>
+
+    <div class="field">
+      <label>Your Name (From)</label>
+      <input type="text" id="senderName" placeholder="e.g. John Smith"/>
+    </div>
+
+    <div class="field">
+      <label>Subject</label>
+      <input type="text" id="emailSubject" placeholder="e.g. Exciting Opportunity for You!"/>
+    </div>
+
+    <div class="field">
+      <label>Message Body</label>
+      <textarea id="emailBody" placeholder="Write your message here...
+
+You can use plain text. Each recipient will receive it individually."></textarea>
+    </div>
+
+    <hr class="sep"/>
+
+    <button class="btn btn-primary" id="sendBtn" onclick="startSending()" disabled>
+      <span>🚀 Send to All Recipients</span>
+    </button>
+    <p style="text-align:center;color:var(--muted);font-size:0.75rem;margin-top:12px;">
+      Emails are sent via your connected Gmail account through Claude AI
+    </p>
+  </div>
+
+  <!-- STEP 3: Progress & Results -->
+  <div class="card hidden" id="card-progress">
+    <div class="card-title">📡 Sending Emails...</div>
+    <div id="progressStatus" style="color:var(--muted);font-size:0.85rem;margin-bottom:8px"></div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+    <div class="log" id="logBox"></div>
+  </div>
+
+  <div class="card hidden" id="card-done">
+    <div class="card-title">🎉 All Done!</div>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-num" id="totalSent" style="color:var(--success)">0</div>
+        <div class="summary-label">Sent Successfully</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num" id="totalFailed" style="color:var(--danger)">0</div>
+        <div class="summary-label">Failed</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num" id="totalTotal" style="color:var(--accent2)">0</div>
+        <div class="summary-label">Total Attempted</div>
+      </div>
+    </div>
+    <hr class="sep"/>
+    <button class="btn btn-secondary" onclick="resetApp()" style="width:100%;justify-content:center;">
+      ↩ Send Another Campaign
+    </button>
+  </div>
+
+</div>
+
+<script>
+const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+let extractedEmails = [];
+let sending = false;
+
+// ── File handling ──────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) processFile(e.target.files[0]);
+});
+
+async function processFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  let text = '';
+
+  try {
+    if (ext === 'xlsx' || ext === 'xls') {
+      text = await readExcel(file);
+    } else if (ext === 'csv') {
+      text = await readAsText(file);
+    } else if (ext === 'docx') {
+      text = await readDocx(file);
+    } else if (ext === 'txt') {
+      text = await readAsText(file);
+    } else {
+      alert('Unsupported file type. Please use XLSX, XLS, CSV, DOCX, or TXT.');
+      return;
+    }
+
+    const found = [...new Set(text.match(EMAIL_REGEX) || [])];
+    extractedEmails = found;
+    renderEmails();
+
+    dropZone.querySelector('.drop-icon').textContent = '✅';
+    dropZone.querySelector('p').innerHTML = `<strong>${file.name}</strong> loaded successfully`;
+
+  } catch (err) {
+    alert('Error reading file: ' + err.message);
+  }
+}
+
+function readAsText(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = () => rej(new Error('Read failed'));
+    r.readAsText(file);
+  });
+}
+
+function readExcel(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        let text = '';
+        wb.SheetNames.forEach(name => {
+          const ws = wb.Sheets[name];
+          text += XLSX.utils.sheet_to_csv(ws) + '\n';
+        });
+        res(text);
+      } catch(err) { rej(err); }
+    };
+    r.onerror = () => rej(new Error('Read failed'));
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function readDocx(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => {
+      mammoth.extractRawText({ arrayBuffer: e.target.result })
+        .then(result => res(result.value))
+        .catch(rej);
+    };
+    r.onerror = () => rej(new Error('Read failed'));
+    r.readAsArrayBuffer(file);
+  });
+}
+
+// ── Email rendering ────────────────────────────────────────
+function renderEmails() {
+  const section = document.getElementById('extractedSection');
+  const tagsEl = document.getElementById('emailTags');
+  const countEl = document.getElementById('emailCount');
+  const sendBtn = document.getElementById('sendBtn');
+
+  section.classList.remove('hidden');
+  countEl.textContent = `${extractedEmails.length} email${extractedEmails.length !== 1 ? 's' : ''} extracted`;
+  tagsEl.innerHTML = '';
+
+  if (extractedEmails.length === 0) {
+    tagsEl.innerHTML = '<div class="empty-state">No emails found in file. Add manually below.</div>';
+  }
+
+  extractedEmails.forEach((email, i) => {
+    const tag = document.createElement('div');
+    tag.className = 'email-tag';
+    tag.innerHTML = `${email} <button onclick="removeEmail(${i})" title="Remove">×</button>`;
+    tagsEl.appendChild(tag);
+  });
+
+  sendBtn.disabled = extractedEmails.length === 0;
+  updateStep(extractedEmails.length > 0 ? 2 : 1);
+}
+
+function removeEmail(i) {
+  extractedEmails.splice(i, 1);
+  renderEmails();
+}
+
+function addManualEmail() {
+  const input = document.getElementById('manualEmail');
+  const email = input.value.trim();
+  if (!email) return;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert('Please enter a valid email address.');
+    return;
+  }
+  if (extractedEmails.includes(email)) {
+    alert('This email is already in the list.');
+    return;
+  }
+  extractedEmails.push(email);
+  input.value = '';
+  renderEmails();
+}
+
+document.getElementById('manualEmail').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addManualEmail();
+});
+
+// ── Sending ────────────────────────────────────────────────
+function updateStep(n) {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('step' + i);
+    el.className = 'step' + (i === n ? ' active' : i < n ? ' done' : '');
+  }
+}
+
+function addLog(msg, type = 'info') {
+  const log = document.getElementById('logBox');
+  const now = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const line = document.createElement('div');
+  line.className = 'log-line ' + type;
+  line.innerHTML = `<span class="log-time">[${now}]</span><span>${msg}</span>`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function startSending() {
+  if (sending) return;
+
+  const subject = document.getElementById('emailSubject').value.trim();
+  const body = document.getElementById('emailBody').value.trim();
+  const senderName = document.getElementById('senderName').value.trim();
+
+  if (!subject) { alert('Please enter an email subject.'); return; }
+  if (!body) { alert('Please enter a message body.'); return; }
+  if (extractedEmails.length === 0) { alert('No emails to send to.'); return; }
+
+  sending = true;
+  updateStep(3);
+  document.getElementById('card-progress').classList.remove('hidden');
+  document.getElementById('sendBtn').disabled = true;
+  document.getElementById('logBox').innerHTML = '';
+
+  let sent = 0, failed = 0;
+  const total = extractedEmails.length;
+
+  addLog(`Starting campaign: ${total} recipients`, 'info');
+
+  for (let i = 0; i < total; i++) {
+    const email = extractedEmails[i];
+    const pct = Math.round(((i) / total) * 100);
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressStatus').textContent = `Sending ${i + 1} of ${total}: ${email}`;
+
+    try {
+      await sendEmailViaClaudeAPI(email, subject, body, senderName);
+      addLog(`✓ Sent to ${email}`, 'ok');
+      sent++;
+    } catch (err) {
+      addLog(`✗ Failed: ${email} — ${err.message}`, 'err');
+      failed++;
+    }
+
+    // Small delay to avoid rate limits
+    if (i < total - 1) await sleep(800);
+  }
+
+  document.getElementById('progressFill').style.width = '100%';
+  document.getElementById('progressStatus').textContent = 'Campaign complete!';
+  addLog(`Campaign finished. ✓ ${sent} sent, ✗ ${failed} failed`, 'info');
+
+  // Show summary
+  document.getElementById('totalSent').textContent = sent;
+  document.getElementById('totalFailed').textContent = failed;
+  document.getElementById('totalTotal').textContent = total;
+  document.getElementById('card-done').classList.remove('hidden');
+  sending = false;
+}
+
+async function sendEmailViaClaudeAPI(toEmail, subject, body, senderName) {
+  const fromLabel = senderName ? `${senderName} (via MailBlast)` : 'MailBlast';
+  const prompt = `Send an email using Gmail with these exact details:
+To: ${toEmail}
+Subject: ${subject}
+Body: ${body}
+
+Please send this email immediately using the Gmail tool. Do not ask for confirmation, just send it.`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      system: "You are an email sending assistant. When asked to send an email, use the Gmail MCP tool to send it immediately without asking for confirmation. Just send the email as requested.",
+      messages: [{ role: "user", content: prompt }],
+      mcp_servers: [{
+        type: "url",
+        url: "https://gmailmcp.googleapis.com/mcp/v1",
+        name: "gmail-mcp"
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // Check if there was an error in the response
+  const textContent = data.content?.filter(b => b.type === 'text').map(b => b.text).join(' ') || '';
+  if (textContent.toLowerCase().includes('error') && textContent.toLowerCase().includes('fail')) {
+    throw new Error('Failed to send via Gmail');
+  }
+
+  return data;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function resetApp() {
+  extractedEmails = [];
+  sending = false;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('emailSubject').value = '';
+  document.getElementById('emailBody').value = '';
+  document.getElementById('senderName').value = '';
+  document.getElementById('manualEmail').value = '';
+  document.getElementById('extractedSection').classList.add('hidden');
+  document.getElementById('card-progress').classList.add('hidden');
+  document.getElementById('card-done').classList.add('hidden');
+  document.getElementById('sendBtn').disabled = true;
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('logBox').innerHTML = '';
+  document.getElementById('dropZone').querySelector('.drop-icon').textContent = '📄';
+  document.getElementById('dropZone').querySelector('p').innerHTML =
+    '<strong>Drop your file here</strong> or click to browse<br/>Excel, Word, CSV, and text files supported';
+  updateStep(1);
+}
+</script>
+</body>
+</html>
