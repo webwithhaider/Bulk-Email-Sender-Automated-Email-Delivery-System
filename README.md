@@ -2,7 +2,7 @@
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=0:ff512f,50:dd2476,100:1a2a6c&height=180&section=header&text=Bulk%20Email%20Sender&fontSize=40&fontColor=ffffff&animation=fadeIn" />
 </p>
-
+<img width="1536" height="1024" alt="Image" src="https://github.com/user-attachments/assets/f9418299-4bcb-49e3-a84b-615c958e6ba3" />
 <!-- ✨ Typing Animation -->
 <p align="center">
   <img src="https://readme-typing-svg.herokuapp.com?lines=Automated+Email+Delivery+System;Fast+%7C+Reliable+%7C+Scalable;Send+Thousands+of+Emails+Easily+🚀&center=true&width=600&height=45">
